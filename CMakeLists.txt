@@ -31,6 +31,11 @@ ExternalProject_Add(
         BUILD_BYPRODUCTS
         ddxt/lib/xbdm.lib
         ddxt/lib/libdynamic_dxt_loader.lib
+        ddxt/include/command_processor_util.h
+        ddxt/include/module_registry.h
+        ddxt/include/nxdk_dxt_dll_main.h
+        ddxt/include/xbdm.h
+        ddxt/include/xbdm_err.h
 )
 # The directory of header files for methods exported by the dynamic DXT loader.
 ExternalProject_Get_Property(dyndxt_loader INSTALL_DIR)
@@ -67,6 +72,10 @@ add_library(
         ${TARGET}
         SHARED
         src/dxtmain.c
+        ${dyndxt_include_dir}/command_processor_util.h
+        ${dyndxt_include_dir}/nxdk_dxt_dll_main.h
+        ${dyndxt_include_dir}/xbdm.h
+        ${dyndxt_include_dir}/xbdm_err.h
 )
 target_include_directories(
         ${TARGET}
@@ -80,7 +89,7 @@ target_link_options(
         PUBLIC
         -Wl,-machine:i386
         -B ${NXDK_DIR}/bin
-        -Wl,-entry:DxtMain
+        -Wl,-entry:DXTMainCRTStartup@0
         -Wl,-dynamicbase
         -Wl,-fixed:no
         -v

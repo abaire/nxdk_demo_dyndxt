@@ -3,69 +3,89 @@
 #include <windows.h>
 
 #include "command_processor_util.h"
+#include "nxdk_dxt_dll_main.h"
 #include "xbdm.h"
+
+// The dxtmain must do at least two things (assuming it is linked with the
+// nxdk):
+//
+// 1) `#include "nxdk_dxt_dll_main.h"`
+//    This defines the DXTMainCRTStartup function that is used to set up
+//    the DLL.
+// 2) Implement `HRESULT DXTMain(void)`
+//    This is the entrypoint into your code. Note that, unlike a normal DLL,
+//    your code is run within the context of the loader process, so it's
+//    expected to return from the `DXTMain` function quickly.
 
 // Command prefix that will be handled by this processor.
 static const char kHandlerName[] = "demo";
 static const uint32_t kTag = 0x64656d6f;  // 'demo'
 
+typedef struct CommandTableEntry {
+  const char *command;
+  HRESULT (*processor)(const char *, char *, DWORD, CommandContext *);
+} CommandTableEntry;
+
 static HRESULT_API ProcessCommand(const char *command, char *response,
-                                  DWORD response_len,
-                                  struct CommandContext *ctx);
+                                  DWORD response_len, CommandContext *ctx);
 
 // Basic immediate request->response.
 static HRESULT HandleBasicRequest(const char *command, char *response,
-                                  DWORD response_len,
-                                  struct CommandContext *ctx);
+                                  DWORD response_len, CommandContext *ctx);
 
 // Receive binary data from the client.
 static HRESULT HandleReceiveBinary(const char *command, char *response,
-                                   DWORD response_len,
-                                   struct CommandContext *ctx);
-static HRESULT_API ReceiveBinaryData(struct CommandContext *ctx, char *response,
+                                   DWORD response_len, CommandContext *ctx);
+static HRESULT_API ReceiveBinaryData(CommandContext *ctx, char *response,
                                      DWORD response_len);
 
 // Send binary data to the client.
 static HRESULT HandleSendBinary(const char *command, char *response,
-                                DWORD response_len, struct CommandContext *ctx);
-static HRESULT_API SendBinaryData(struct CommandContext *ctx, char *response,
+                                DWORD response_len, CommandContext *ctx);
+static HRESULT_API SendBinaryData(CommandContext *ctx, char *response,
                                   DWORD response_len);
 
 // Send multiline text response to the client.
 static HRESULT HandleSendMultiline(const char *command, char *response,
-                                   DWORD response_len,
-                                   struct CommandContext *ctx);
-static HRESULT_API SendMultilineData(struct CommandContext *ctx, char *response,
+                                   DWORD response_len, CommandContext *ctx);
+static HRESULT_API SendMultilineData(CommandContext *ctx, char *response,
                                      DWORD response_len);
 
-HRESULT __declspec(dllexport) DxtMain(void) {
+// Send a message to the notification channel.
+static HRESULT HandleSendNotification(const char *command, char *response,
+                                      DWORD response_len, CommandContext *ctx);
+
+// Enumerates the command table.
+static HRESULT HandleHello(const char *command, char *response,
+                           DWORD response_len, CommandContext *ctx);
+static HRESULT_API SendHelloData(CommandContext *ctx, char *response,
+                                 DWORD response_len);
+
+static const CommandTableEntry kCommandTable[] = {
+    {"hello", HandleHello},
+    {"basicrequest", HandleBasicRequest},
+    {"receivebin", HandleReceiveBinary},
+    {"sendbin", HandleSendBinary},
+    {"sendmultiline", HandleSendMultiline},
+    {"sendnotification", HandleSendNotification},
+};
+static const uint32_t kCommandTableNumEntries =
+    sizeof(kCommandTable) / sizeof(kCommandTable[0]);
+
+HRESULT DXTMain(void) {
   return DmRegisterCommandProcessor(kHandlerName, ProcessCommand);
 }
 
 static HRESULT_API ProcessCommand(const char *command, char *response,
-                                  DWORD response_len,
-                                  struct CommandContext *ctx) {
+                                  DWORD response_len, CommandContext *ctx) {
   const char *subcommand = command + sizeof(kHandlerName);
 
-  if (!strncmp(subcommand, "hello", 5)) {
-    strncpy(response, "Hi from demo_dyndxt", response_len);
-    return XBOX_S_OK;
-  }
-
-  if (!strncmp(subcommand, "basicrequest", 12)) {
-    return HandleBasicRequest(subcommand + 12, response, response_len, ctx);
-  }
-
-  if (!strncmp(subcommand, "receivebin", 10)) {
-    return HandleReceiveBinary(subcommand + 10, response, response_len, ctx);
-  }
-
-  if (!strncmp(subcommand, "sendbin", 7)) {
-    return HandleSendBinary(subcommand + 7, response, response_len, ctx);
-  }
-
-  if (!strncmp(subcommand, "sendmultiline", 13)) {
-    return HandleSendMultiline(subcommand + 13, response, response_len, ctx);
+  const CommandTableEntry *entry = kCommandTable;
+  for (uint32_t i = 0; i < kCommandTableNumEntries; ++i, ++entry) {
+    uint32_t len = strlen(entry->command);
+    if (!strncmp(subcommand, entry->command, len)) {
+      return entry->processor(subcommand + len, response, response_len, ctx);
+    }
   }
 
   return XBOX_E_UNKNOWN_COMMAND;
@@ -75,8 +95,7 @@ static HRESULT_API ProcessCommand(const char *command, char *response,
 // Request parameters may be processed with the CPParseCommandParameters method
 // and associated extractors exported by the Dynamic DXT loader if desired.
 static HRESULT HandleBasicRequest(const char *command, char *response,
-                                  DWORD response_len,
-                                  struct CommandContext *ctx) {
+                                  DWORD response_len, CommandContext *ctx) {
   response[0] = 0;
   strncat(response, "Response!", response_len);
   return XBOX_S_OK;
@@ -85,8 +104,7 @@ static HRESULT HandleBasicRequest(const char *command, char *response,
 // Commands can receive binary files from the client by setting up the
 // CommandContext and returning XBOX_S_SEND_BINARY.
 static HRESULT HandleReceiveBinary(const char *command, char *response,
-                                   DWORD response_len,
-                                   struct CommandContext *ctx) {
+                                   DWORD response_len, CommandContext *ctx) {
   // Some mechanism to determine end-of-data from the data alone must be used.
   // Generally this would be done by specifying the length as a command
   // parameter or having a hardcoded size up front, but it'd also be possible to
@@ -141,7 +159,7 @@ static HRESULT HandleReceiveBinary(const char *command, char *response,
   return XBOX_S_SEND_BINARY;
 }
 
-static HRESULT_API ReceiveBinaryData(struct CommandContext *ctx, char *response,
+static HRESULT_API ReceiveBinaryData(CommandContext *ctx, char *response,
                                      DWORD response_len) {
   // This method will be invoked by XBDM as it receives binary data sent in
   // response to an XBOX_S_SEND_BINARY return value.
@@ -206,8 +224,7 @@ static HRESULT_API ReceiveBinaryData(struct CommandContext *ctx, char *response,
 
 // Send binary data to the client.
 static HRESULT HandleSendBinary(const char *command, char *response,
-                                DWORD response_len,
-                                struct CommandContext *ctx) {
+                                DWORD response_len, CommandContext *ctx) {
   // Sending a binary response involves supplying a buffer, a handler procedure
   // to populate it, and returning  XBOX_S_BINARY to request that XBDM invoke
   // the handler repeatedly until it returns XBOX_S_NO_MORE_DATA.
@@ -246,7 +263,7 @@ static HRESULT HandleSendBinary(const char *command, char *response,
   return XBOX_S_BINARY;
 }
 
-static HRESULT_API SendBinaryData(struct CommandContext *ctx, char *response,
+static HRESULT_API SendBinaryData(CommandContext *ctx, char *response,
                                   DWORD response_len) {
   // This handler is responsible for populating `ctx->buffer` with response
   // data, setting `ctx->data_size` to the number of valid bytes in the buffer,
@@ -286,8 +303,7 @@ static HRESULT_API SendBinaryData(struct CommandContext *ctx, char *response,
 
 // Send multiline text response to the client.
 static HRESULT HandleSendMultiline(const char *command, char *response,
-                                   DWORD response_len,
-                                   struct CommandContext *ctx) {
+                                   DWORD response_len, CommandContext *ctx) {
   // Multiline responses are sent by returning XBOX_S_MULTILINE from the command
   // processor, which will cause the registered handler to be invoked repeatedly
   // until it returns an error or XBOX_S_NO_MORE_DATA.
@@ -299,13 +315,15 @@ static HRESULT HandleSendMultiline(const char *command, char *response,
   ctx->user_data = (void *)4;
   ctx->handler = SendMultilineData;
 
-  // It is not necessary to populate the response message.
+  // It is not necessary to populate the response message, but if it is
+  // populated here and not populated by the registered handler, this value will
+  // be sent when the handler is exhausted.
   *response = 0;
   strncat(response, "Countdown...", response_len);
   return XBOX_S_MULTILINE;
 }
 
-static HRESULT_API SendMultilineData(struct CommandContext *ctx, char *response,
+static HRESULT_API SendMultilineData(CommandContext *ctx, char *response,
                                      DWORD response_len) {
   // This method will be invoked by XBDM repeatedly until it returns an error
   // code or XBOX_S_NO_MORE_DATA.
@@ -347,5 +365,49 @@ static HRESULT_API SendMultilineData(struct CommandContext *ctx, char *response,
 
   memcpy(ctx->buffer, msg, message_len);
 
+  return XBOX_S_OK;
+}
+
+// DmSendNotification demonstration.
+static HRESULT HandleSendNotification(const char *command, char *response,
+                                      DWORD response_len, CommandContext *ctx) {
+  HRESULT result = DmSendNotificationString("demo!Notification");
+  if (!XBOX_SUCCESS(result)) {
+    response[0] = 0;
+    strncat(response, "Sending failed!", response_len);
+    return result;
+  }
+
+  response[0] = 0;
+  strncat(response, "Notification sent!", response_len);
+  return XBOX_S_OK;
+}
+
+static HRESULT HandleHello(const char *command, char *response,
+                           DWORD response_len, CommandContext *ctx) {
+  ctx->user_data = 0;
+  ctx->handler = SendHelloData;
+  *response = 0;
+  strncat(response, "Available commands:", response_len);
+  return XBOX_S_MULTILINE;
+}
+
+static HRESULT_API SendHelloData(CommandContext *ctx, char *response,
+                                 DWORD response_len) {
+  uint32_t current_index = (uint32_t)ctx->user_data++;
+
+  if (current_index >= kCommandTableNumEntries) {
+    return XBOX_S_NO_MORE_DATA;
+  }
+
+  const CommandTableEntry *entry = &kCommandTable[current_index];
+  uint32_t command_len = strlen(entry->command) + 1;
+  if (command_len > ctx->buffer_size) {
+    response[0] = 0;
+    strncat(response, "Response buffer is too small", response_len);
+    return XBOX_E_ACCESS_DENIED;
+  }
+
+  memcpy(ctx->buffer, entry->command, command_len);
   return XBOX_S_OK;
 }
