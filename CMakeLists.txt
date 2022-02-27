@@ -25,7 +25,12 @@ ExternalProject_Add(
         GIT_REPOSITORY https://github.com/abaire/nxdk_dyndxt.git
         GIT_TAG origin/main
         CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-        BUILD_BYPRODUCTS ddxt/lib/xbdm.lib ddxt/lib/dynamic_dxt_loader.lib
+        BUILD_COMMAND ""
+        INSTALL_COMMAND
+            cmake --build . --target install --config Release
+        BUILD_BYPRODUCTS
+        ddxt/lib/xbdm.lib
+        ddxt/lib/libdynamic_dxt_loader.lib
 )
 # The directory of header files for methods exported by the dynamic DXT loader.
 ExternalProject_Get_Property(dyndxt_loader INSTALL_DIR)
@@ -45,16 +50,15 @@ set_target_properties(
 )
 add_dependencies(xbdm_lib dyndxt_loader)
 
-# Import library containing functions exposed by the dynamic DXT loader.
-add_library(ddxt_loader_lib SHARED IMPORTED)
-add_dependencies(ddxt_loader_lib dyndxt_loader)
+# Import library containing Dynamic DXT DLL exports.
+add_library(dynamic_dxt_loader_lib SHARED IMPORTED)
 set_target_properties(
-        ddxt_loader_lib
+        dynamic_dxt_loader_lib
         PROPERTIES
-        IMPORTED_LOCATION ${dyndxt_lib_dir}/dynamic_dxt_loader.lib
+        IMPORTED_LOCATION ${dyndxt_lib_dir}/libdynamic_dxt_loader.lib
         INTERFACE_INCLUDE_DIRECTORIES ${dyndxt_include_dir}
 )
-
+add_dependencies(dynamic_dxt_loader_lib dyndxt_loader)
 
 
 set(TARGET demo_dyndxt)
@@ -84,6 +88,6 @@ target_link_options(
 target_link_libraries(
         ${TARGET}
         PRIVATE
-        ddxt_loader_lib
+        dynamic_dxt_loader_lib
         xbdm_lib
 )
