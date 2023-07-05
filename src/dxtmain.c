@@ -225,8 +225,10 @@ static HRESULT_API ReceiveBinaryData(CommandContext *ctx, char *response,
 // Send binary data to the client.
 static HRESULT HandleSendBinary(const char *command, char *response,
                                 DWORD response_len, CommandContext *ctx) {
-  // Sending a binary response involves supplying a buffer, a handler procedure
-  // to populate it, and returning  XBOX_S_BINARY to request that XBDM invoke
+  // Sending a binary response involves supplying a handler procedure that will
+  // be called repeatedly to populate the send buffer. The CommandContext's
+  // buffer may also be replaced with a larger one for efficiency.
+  // Finally, this method must return XBOX_S_BINARY to request that XBDM invoke
   // the handler repeatedly until it returns XBOX_S_NO_MORE_DATA.
 
   // In this demo, 4 bytes are returned to the client in 4 invocations of the
@@ -239,10 +241,10 @@ static HRESULT HandleSendBinary(const char *command, char *response,
   ctx->bytes_remaining = 3;
   ctx->handler = SendBinaryData;
 
-  // Unlike in the binary receive scenario, XBDM does not populate the send
-  // buffer, so it must be done here.
-  // The buffer could just be a global array, but heap allocation is used for
-  // demonstration purposes.
+  // The default XBDM buffer is small, so it may be desirable to utilize a
+  // larger buffer. The buffer could just be a global array, but heap allocation
+  // is used for demonstration purposes. A heap allocated buffer must be freed
+  // in the send handler.
   const uint32_t kBufferSize = 4;
   uint8_t *buffer = DmAllocatePoolWithTag(kBufferSize, kTag);
   if (!buffer) {
@@ -269,8 +271,11 @@ static HRESULT_API SendBinaryData(CommandContext *ctx, char *response,
   // data, setting `ctx->data_size` to the number of valid bytes in the buffer,
   // and returning either XBOX_S_OK (if more data needs to be sent) or
   // XBOX_S_NO_MORE_DATA if all data has already been sent.
+  //
   // Note that the `bytes_remaining` field is unused in the context of binary-
-  // sending and can/should be ignored entirely.
+  // sending and can be ignored entirely or used by this handler to determine
+  // when to stop sending data. In this demo, `user_data` is used to determine
+  // the end condition and `bytes_remaining` is ignored.
 
   if (!ctx->user_data) {
     // Since the buffer was allocated by us, it is important to clean it up
