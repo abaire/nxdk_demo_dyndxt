@@ -45,6 +45,14 @@ static HRESULT HandleSendBinary(const char *command, char *response,
 static HRESULT_API SendBinaryData(CommandContext *ctx, char *response,
                                   DWORD response_len);
 
+// Send a large buffer to the client, prefixed with the size of the buffer.
+static HRESULT HandleSendSizePrefixedBinary(const char *command, char *response,
+                                            DWORD response_len,
+                                            CommandContext *ctx);
+static HRESULT_API SendPrepopulatedBinaryData(CommandContext *ctx,
+                                              char *response,
+                                              DWORD response_len);
+
 // Send multiline text response to the client.
 static HRESULT HandleSendMultiline(const char *command, char *response,
                                    DWORD response_len, CommandContext *ctx);
@@ -66,6 +74,7 @@ static const CommandTableEntry kCommandTable[] = {
     {"basicrequest", HandleBasicRequest},
     {"receivebin", HandleReceiveBinary},
     {"sendbin", HandleSendBinary},
+    {"sendsizeprefixedbin", HandleSendSizePrefixedBinary},
     {"sendmultiline", HandleSendMultiline},
     {"sendnotification", HandleSendNotification},
 };
@@ -302,6 +311,75 @@ static HRESULT_API SendBinaryData(CommandContext *ctx, char *response,
   ctx->data_size = 1;
 
   --ctx->user_data;
+
+  return XBOX_S_OK;
+}
+
+// Send binary data to the client.
+static HRESULT HandleSendSizePrefixedBinary(const char *command, char *response,
+                                            DWORD response_len,
+                                            CommandContext *ctx) {
+  // Demonstrates sending a large buffer to the client where the first 4 bytes
+  // contain the size of the buffer.
+
+  ctx->handler = SendPrepopulatedBinaryData;
+
+  const uint32_t kDataSize = 1024 * 1024;
+  uint8_t *buffer = DmAllocatePoolWithTag(kDataSize + 4, kTag);
+  if (!buffer) {
+    response[0] = 0;
+    strncat(response, "Failed to allocate send buffer", response_len);
+    return XBOX_E_ACCESS_DENIED;
+  }
+
+  // No data will be sent by XBDM until after it invokes the `handler`
+  // procedure, but the buffer contents also will not be touched by the system
+  // so it may be initialized here.
+  memcpy(buffer, &kDataSize, sizeof(kDataSize));
+  for (uint32_t i = 0; i < kDataSize; ++i) {
+    buffer[i + 4] = i & 0xFF;
+  }
+
+  ctx->user_data = (void*)kDataSize;
+  ctx->buffer = buffer;
+  ctx->bytes_remaining = kDataSize + 4;
+  ctx->buffer_size = kDataSize + 4;
+
+  // Sending back a message is not actually necessary.
+  snprintf(response, response_len, "Returning size prefixed data");
+
+  return XBOX_S_BINARY;
+}
+
+static HRESULT_API SendPrepopulatedBinaryData(CommandContext *ctx,
+                                              char *response,
+                                              DWORD response_len) {
+  // This handler is responsible for populating `ctx->buffer` with response
+  // data, setting `ctx->data_size` to the number of valid bytes in the buffer,
+  // and returning either XBOX_S_OK (if more data needs to be sent) or
+  // XBOX_S_NO_MORE_DATA if all data has already been sent.
+  //
+  // Note that the `bytes_remaining` field is unused in the context of binary-
+  // sending and can be ignored entirely or used by this handler to determine
+  // when to stop sending data. In this demo, `user_data` is used to determine
+  // the end condition and `bytes_remaining` is ignored.
+
+  if (!ctx->bytes_remaining) {
+    // Since the buffer was allocated by us, it is important to clean it up
+    // here as XBDM will not invoke this handler again once it returns XBOX_S_OK
+    // with ctx->bytes_remaining == 0.
+    DmFreePool(ctx->buffer);
+
+    // It is not actually necessary to populate the response message.
+    response[0] = 0;
+    strncat(response, "Done sending bytes!", response_len);
+    return XBOX_S_NO_MORE_DATA;
+  }
+
+  // ctx->data_size is updated to indicate how many bytes of ctx->buffer are
+  // populated.
+  ctx->data_size = ctx->bytes_remaining;
+  ctx->bytes_remaining = 0;
 
   return XBOX_S_OK;
 }
