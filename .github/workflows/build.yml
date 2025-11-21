@@ -18,12 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone tree
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
           path: nxdk_trainer_dyndxt
       - name: Clone nxdk
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: XboxDev/nxdk
           ref: d0ae96acc926a6c3f6254b289a1a9a3c1db182f1
@@ -67,12 +67,12 @@ jobs:
     runs-on: macOS-latest
     steps:
       - name: Clone tree
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
           path: nxdk_trainer_dyndxt
       - name: Clone nxdk
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: XboxDev/nxdk
           ref: d0ae96acc926a6c3f6254b289a1a9a3c1db182f1
