@@ -74,6 +74,10 @@ add_library(
         ${TARGET}
         SHARED
         src/dxtmain.c
+        src/hook_function.c
+        src/hook_function.h
+        src/tag.c
+        src/tag.h
         ${dyndxt_include_dir}/command_processor_util.h
         ${dyndxt_include_dir}/nxdk_dxt_dll_main.h
         ${dyndxt_include_dir}/xbdm.h
