@@ -22,14 +22,14 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 ExternalProject_Add(
         dyndxt_loader
         GIT_REPOSITORY https://github.com/abaire/nxdk_dyndxt.git
-        GIT_TAG origin/main
+        GIT_TAG 3b2f46569f3fe70e48f67df79a57b4ce53f0fad7
         CMAKE_ARGS
-        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} 
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
         -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
         -DBUILD_TESTING=OFF
         BUILD_COMMAND ""
         INSTALL_COMMAND
-            cmake --build . --target install --config Release
+        cmake --build . --target install --config Release
         BUILD_BYPRODUCTS
         <INSTALL_DIR>/lib/xbdm.lib
         <INSTALL_DIR>/lib/libdynamic_dxt_loader.lib

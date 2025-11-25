@@ -9,6 +9,19 @@ responds to various commands.
 Intended for use with [xbdm_gdb_bridge](https://github.com/abaire/xbdm_gdb_bridge)'s
 `@load` command.
 
+```
+xbdm_gdb_bridge 127.0.0.1:1731
+
+# Attach the debugger
+> /attach
+
+# Load the library
+> @load libdemo_dyndxt.dll
+
+# List commands
+> @m demo!hello
+```
+
 # git hooks
 
 This project uses [git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks)
