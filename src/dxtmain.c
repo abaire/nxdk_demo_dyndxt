@@ -3,7 +3,9 @@
 #include <windows.h>
 
 #include "command_processor_util.h"
+#include "hook_function.h"
 #include "nxdk_dxt_dll_main.h"
+#include "tag.h"
 #include "xbdm.h"
 
 // The dxtmain must do at least two things (assuming it is linked with the
@@ -19,7 +21,6 @@
 
 // Command prefix that will be handled by this processor.
 static const char kHandlerName[] = "demo";
-static const uint32_t kTag = 0x64656d6f;  // 'demo'
 
 typedef struct CommandTableEntry {
   const char *command;
@@ -77,6 +78,7 @@ static const CommandTableEntry kCommandTable[] = {
     {"sendsizeprefixedbin", HandleSendSizePrefixedBinary},
     {"sendmultiline", HandleSendMultiline},
     {"sendnotification", HandleSendNotification},
+    {"hook", HandleHook},
 };
 static const uint32_t kCommandTableNumEntries =
     sizeof(kCommandTable) / sizeof(kCommandTable[0]);
@@ -340,7 +342,7 @@ static HRESULT HandleSendSizePrefixedBinary(const char *command, char *response,
     buffer[i + 4] = i & 0xFF;
   }
 
-  ctx->user_data = (void*)kDataSize;
+  ctx->user_data = (void *)kDataSize;
   ctx->buffer = buffer;
   ctx->bytes_remaining = kDataSize + 4;
   ctx->buffer_size = kDataSize + 4;
