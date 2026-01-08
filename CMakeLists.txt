@@ -76,6 +76,8 @@ add_library(
         src/dxtmain.c
         src/hook_function.c
         src/hook_function.h
+        src/patching_tools.c
+        src/patching_tools.h
         src/tag.c
         src/tag.h
         ${dyndxt_include_dir}/command_processor_util.h
